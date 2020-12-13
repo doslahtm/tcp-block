@@ -18,8 +18,8 @@ struct BkPkt {
     char BlockMsg[11] = "blocked!!!";
 };
 struct PsuedoHdr {
-    libnet_ipv4_hdr sip;
-    libnet_ipv4_hdr dip;
+    struct in_addr sip;
+    struct in_addr dip;
     uint8_t zero = 0;
     uint8_t pro = 0x6;
     uint16_t TcpLen;
