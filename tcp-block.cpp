@@ -1,15 +1,5 @@
 #include "tcp-block.h"
 
-void dump(unsigned char *buf, int size)
-{
-	int i;
-	for (i = 0; i < size; i++)
-	{
-		if (i % 16 == 0)
-			printf("\n");
-		printf("%02x ", buf[i]);
-	}
-}
 
 uint16_t CalcTcpSum(char *packet)
 {
@@ -78,8 +68,7 @@ void SendForward(pcap_t* handle, char *OrgPkt, uint8_t *mymac)
     OrgDataSize -= (((struct libnet_ipv4_hdr *)(OrgPkt + sizeof(EthHdr))) -> ip_hl << 2);
     char *TcpPkt = OrgPkt + (((struct libnet_ipv4_hdr *)(OrgPkt + sizeof(EthHdr))) -> ip_hl << 2) + sizeof(EthHdr);
     OrgDataSize -= (((struct libnet_tcp_hdr *)TcpPkt) -> th_off << 2);
-    // printf("%x %x %x\n", ntohs(((struct libnet_ipv4_hdr *)(OrgPkt + sizeof(EthHdr))) -> ip_len), (((struct libnet_ipv4_hdr *)(OrgPkt + sizeof(EthHdr))) -> ip_hl << 2), (((struct libnet_tcp_hdr *)TcpPkt) -> th_off << 2));
-    
+        
     MyPkt.eth_.smac_ = Mac(mymac);
     MyPkt.eth_.dmac_ = ((struct EthHdr *)OrgPkt) -> dmac_;
     MyPkt.eth_.type_ = htons(EthHdr::Ip4);
@@ -124,7 +113,6 @@ void SendBackward(pcap_t* handle, char *OrgPkt, uint8_t *mymac)
     OrgDataSize -= (((struct libnet_ipv4_hdr *)(OrgPkt + sizeof(EthHdr))) -> ip_hl << 2);
     char *TcpPkt = OrgPkt + (((struct libnet_ipv4_hdr *)(OrgPkt + sizeof(EthHdr))) -> ip_hl << 2) + sizeof(EthHdr);
     OrgDataSize -= (((struct libnet_tcp_hdr *)TcpPkt) -> th_off << 2);
-    // printf("%x %x %x\n", ntohs(((struct libnet_ipv4_hdr *)(OrgPkt + sizeof(EthHdr))) -> ip_len), (((struct libnet_ipv4_hdr *)(OrgPkt + sizeof(EthHdr))) -> ip_hl << 2), (((struct libnet_tcp_hdr *)TcpPkt) -> th_off << 2));
     
     MyPkt.eth_.smac_ = Mac(mymac);
     MyPkt.eth_.dmac_ = ((struct EthHdr *)OrgPkt) -> smac_;
@@ -132,8 +120,8 @@ void SendBackward(pcap_t* handle, char *OrgPkt, uint8_t *mymac)
 
     MyPkt.ip_.ip_hl = 0x05;
     MyPkt.ip_.ip_v = 0x04;
-    MyPkt.ip_.ip_tos = 0x44;
     MyPkt.ip_.ip_len = htons(sizeof(struct libnet_tcp_hdr) + sizeof(struct libnet_ipv4_hdr) + sizeof(MyPkt.BlockMsg));
+    MyPkt.ip_.ip_off = htons(0x4000); // indicate not fragments
     MyPkt.ip_.ip_ttl = 128;
     MyPkt.ip_.ip_src = ((struct libnet_ipv4_hdr*)(OrgPkt + sizeof(EthHdr))) -> ip_dst;
     MyPkt.ip_.ip_dst = ((struct libnet_ipv4_hdr*)(OrgPkt + sizeof(EthHdr))) -> ip_src;
@@ -149,20 +137,19 @@ void SendBackward(pcap_t* handle, char *OrgPkt, uint8_t *mymac)
     MyPkt.tcp_.th_ack = htonl(ntohl(((struct libnet_tcp_hdr *)(OrgPkt + sizeof(EthHdr) + sizeof(libnet_ipv4_hdr))) -> th_seq) + OrgDataSize);
     MyPkt.tcp_.th_sport = ((struct libnet_tcp_hdr *)(OrgPkt + sizeof(EthHdr) + sizeof(libnet_ipv4_hdr))) -> th_dport;
     MyPkt.tcp_.th_dport = ((struct libnet_tcp_hdr *)(OrgPkt + sizeof(EthHdr) + sizeof(libnet_ipv4_hdr))) -> th_sport;
-    MyPkt.tcp_.th_win = htons(0x100);
+    MyPkt.tcp_.th_win = htons(0x1234);
     MyPkt.tcp_.th_urp = 0;
     MyPkt.tcp_.th_sum = 0;
     MyPkt.tcp_.th_sum = htons(CalcTcpSum((char *)&MyPkt));
 
     MyPkt.ip_.ip_sum = htons(CalcIpSum((char *)&MyPkt));
-    int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&MyPkt), sizeof(BkPkt));
+
+    int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&MyPkt), sizeof(MyPkt));
 
     if (res != 0) 
     {
 		fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
 	}
-    dump((uint8_t*)&MyPkt, sizeof(BkPkt));
-    printf("I send Backward!!\n");
     return ;
 
 }
