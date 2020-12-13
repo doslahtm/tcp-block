@@ -19,58 +19,47 @@ uint32_t KMP(char* pkt, char* ptn);
 
 uint32_t KMP(char* pkt, char* ptn)
 {
-    printf("A");
     char *Pkt_ = pkt + EthHdrLen; // IP Packet
     uint32_t IpPktLen = ntohs(((struct libnet_ipv4_hdr *)Pkt_) -> ip_len); 
     uint32_t IpHdrLen = ((struct libnet_ipv4_hdr *)Pkt_) -> ip_hl << 2;
     uint32_t TcpHdrLen = ((struct libnet_tcp_hdr *)(Pkt_ + IpHdrLen)) -> th_off << 2; // tcp header length
     Pkt_ = Pkt_ + IpHdrLen + TcpHdrLen; // data
     uint32_t DataSize = IpPktLen - IpHdrLen - TcpHdrLen;
-    uint32_t PktIdx = 0;
-    uint32_t PtnIdx = 0;
+    uint32_t j = 0;
     uint32_t PtnLen = strlen(ptn);
-    while (PktIdx < DataSize)
+    for (uint32_t i = 0; i < DataSize; i++)
     {
-        if (PtnIdx == -1 || Pkt_[PktIdx] == ptn[PtnIdx])
+        while (j > 0 && Pkt_[i] != ptn[j])
+            j = FailTable[j - 1];
+        if (Pkt_[i] == ptn[j])
         {
-            PktIdx++;
-            PtnIdx++;
-        }
-        else
-        {
-            PtnIdx = FailTable[PtnIdx];
-        }
-        if (PtnIdx == PtnLen)
-        {
-            printf("I found it!!\n");
-            return 1;
+            if (j == PtnLen - 1)
+            {
+                return 1;
+            }
+            else
+            {
+                j++;
+            }
         }
     }
-    printf("I did not Found it!!\n");
     return 0;
 }
 
 void MakeFailTable(char *ptn)
 {
-    uint32_t PtnIdx = 0;
-    uint32_t k = -1;
+    uint32_t k = 0;
     uint32_t PtnLen = strlen(ptn);
     FailTable = (uint8_t*)malloc(PtnLen + 1);
-    memset(FailTable, 0, PtnLen + 1);
-    FailTable[0] = -1;
-    while (PtnIdx < PtnLen )
+    memset(FailTable, 0, PtnLen + 1); // first set every table value 0
+    for (uint32_t i = 1; i < PtnLen; i++)
     {
-        if (k == -1 || ptn[PtnIdx] == ptn[k])
-        {
-            PtnIdx++;
-            k++;
-            FailTable[PtnIdx] = k;
-        }
-        else
-        {
-            k = FailTable[k];
-        }
+        while ( k > 0 && ptn[i] != ptn[k] ) // first k is 0
+            k = FailTable[k - 1];
+        if (ptn[k] == ptn[i])
+            FailTable[i] = ++k;
     }
+    return ;
 }
 
 
@@ -161,8 +150,8 @@ int main(int argc, char *argv[])
         {
             if ( KMP((char *)packet, argv[2]) )
             {
-                //SendForward(handle, (char *)packet, MyMac);
-                //SendBackward();
+                SendForward(handle, (char *)packet, MyMac);
+                SendBackward(handle, (char *)packet, MyMac);
             }
 
         }
